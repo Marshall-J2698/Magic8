@@ -1,0 +1,90 @@
+#include <Arduino.h>
+#include <lvgl.h>
+#include <TFT_eSPI.h>
+#include <Adafruit_ADXL345_U.h>
+
+#define DEBUG 0
+
+const long MINDELAY = 5000;
+const long HOLDFOR = 2000;
+const float SHAKETHRESHOLD = 22;
+float Ax,Ay,Az,mag;
+
+enum ScreenStates{
+  IDLE,
+  SHAKEN
+};
+
+enum ScreenStates curScreen = IDLE;
+
+
+Adafruit_ADXL345_Unified accel = Adafruit_ADXL345_Unified(12345);
+unsigned long last_fire = 0;
+
+#define HOR_RES 240
+#define VER_RES 240
+
+#define DRAW_BUF_SIZE (HOR_RES * VER_RES / 10 * (LV_COLOR_DEPTH / 8))
+uint32_t draw_buf[DRAW_BUF_SIZE / 4];
+// Setup our buffer for our actual 
+static lv_color_t tri_canv_buf[DRAW_BUF_SIZE];
+lv_obj_t * tri_canv;
+
+static uint32_t my_tick_get_cb(void); 
+
+void setup() {
+  // put your setup code here, to run once:
+  lv_init();
+  lv_tick_set_cb(my_tick_get_cb);
+  lv_display_t * display1 = lv_tft_espi_create(HOR_RES, VER_RES, draw_buf, sizeof(draw_buf));
+  lv_obj_set_style_bg_color(lv_screen_active(),lv_color_hex(0x0d1645),LV_PART_MAIN);
+  
+  tri_canv = lv_canvas_create(lv_screen_active());
+  lv_canvas_set_buffer(tri_canv,tri_canv_buf,HOR_RES,VER_RES,LV_IMG_CF_TRUE_COLOR);
+  
+  accel.begin();
+  accel.setRange(ADXL345_RANGE_16_G);
+  Serial.begin();
+  
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+
+  delay(10);
+  sensors_event_t event;
+  accel.getEvent(&event);
+  Ax = event.acceleration.x;
+  Ay = event.acceleration.y;
+  Az = event.acceleration.z;
+  mag = sqrt(pow(Ax,2) + pow(Ay,2)+ pow(Az,2));
+  if (millis()-last_fire > MINDELAY && mag > SHAKETHRESHOLD){
+    // Serial.print("shaken");
+    lv_obj_set_style_bg_color(lv_screen_active(),lv_color_hex(0xcf320e),LV_PART_MAIN);
+    curScreen = SHAKEN;
+    last_fire = millis();
+  }
+
+  if (DEBUG){
+    Serial.print(Ax);
+    Serial.print(',');
+    Serial.print(Ay);
+    Serial.print(',');
+    Serial.print(Az);
+    Serial.print(',');
+    Serial.print("mag: ");
+    Serial.print(mag);
+    Serial.println();
+  }
+
+  if (millis()-last_fire > HOLDFOR && curScreen == SHAKEN){
+    lv_obj_set_style_bg_color(lv_screen_active(),lv_color_hex(0x0d1645),LV_PART_MAIN);
+    curScreen = IDLE;
+  }
+  lv_task_handler();
+}
+
+static uint32_t my_tick_get_cb(void){ 
+  return millis(); 
+}
+
