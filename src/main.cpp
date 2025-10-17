@@ -61,15 +61,23 @@ void loop() {
     tft.setTextDatum(MC_DATUM);
     
     int ind = random(0,200);
+    char *token = strtok(projects[ind]," ");
     for(int i = 0; i < 256; i+=2){
       tft.fillTriangle(120,16,30,172,210,172,tft.alphaBlend(i,DEF_BLUE,TFT_BLACK));
       if (i > 120){
         tft.setTextColor(tft.alphaBlend(i,TFT_WHITE,TFT_BLACK));
-      tft.drawString(projects[ind],xpos,ypos,GFXFF); 
+        tft.drawString(projects[ind],xpos,ypos,GFXFF);
+        }
       }
-      
+        int offset = 0; //tft.alphaBlend(i,TFT_WHITE,TFT_BLACK)
+        tft.setTextColor(TFT_WHITE);
+        while (token != NULL){
+          tft.drawString(token,xpos,ypos+offset,GFXFF); 
+          offset += 8;
+          token = strtok(NULL, " ");
     }
-;
+
+
     
 
 
