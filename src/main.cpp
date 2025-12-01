@@ -8,7 +8,7 @@
 #include <HTTPClient.h>
 #include <Preferences.h>
 
-#define DEBUG 0
+// #define DEBUG
 #define DEF_BLUE 0x0027
 
 #define MAXPROJ 20
@@ -109,7 +109,7 @@ void loop() {
     projectAnimation(tempBuf);
   }
 
-  if (DEBUG){
+  #ifdef DEBUG
     Serial.print(Ax);
     Serial.print(',');
     Serial.print(Ay);
@@ -119,7 +119,7 @@ void loop() {
     Serial.print("mag: ");
     Serial.print(mag);
     Serial.println();
-  }
+  #endif
 
   if (millis()-last_fire > HOLDFOR && curScreen == SHAKEN){
     curScreen = IDLE;
@@ -164,17 +164,12 @@ void storeHTTPSdata() {
     client->setCACert(rootCACertificate);
     client->setTimeout(30000);
     {
-      // Add a scoping block for HTTPClient https to make sure it is destroyed before NetworkClientSecure *client is
       HTTPClient https;
       Serial.print("[HTTPS] begin...\n");
       if (https.begin(*client, "https://makerspace.cc/Category:SimpleProjects")) {  // HTTPS
         Serial.print("[HTTPS] GET...\n");
-        // start connection and send HTTP header
         int httpCode = https.GET();
-
-        // httpCode will be negative on error
         if (httpCode > 0) {
-          // HTTP header has been send and Server response header has been handled
           Serial.printf("[HTTPS] GET... code: %d\n", httpCode);
 
           // file found at server
@@ -189,7 +184,9 @@ void storeHTTPSdata() {
               while (payload[iter+i]!= '"') {
                 if (payload[iter+i] == '(') break;
                 projBuffer[projInd][i] = payload[iter+i];
-                // Serial.print(payload[iter+i]);
+                #ifdef DEBUG
+                  Serial.print(payload[iter+i]);
+                #endif
                 i++;
               }
               projBuffer[projInd][i+1] = '\0';
@@ -215,28 +212,34 @@ void storeHTTPSdata() {
           tft.drawString("Unable to make HTTPS req",xpos,ypos,GFXFF);
           delay(1000);
           tft.fillScreen(TFT_BLACK);
-          Serial.printf("[HTTPS] Unable to connect\n");
+          #ifdef DEBUG
+            Serial.printf("[HTTPS] Unable to connect\n");
+          #endif
+
         }
 
       }
       delete client;
     }
     else {
-      Serial.println("Unable to create client");
+      #ifdef DEBUG
+        Serial.println("Unable to create client");
+      #endif 
     }
     tft.fillScreen(TFT_BLACK);
     tft.drawString("Successful req!",xpos,ypos,GFXFF);
     delay(1000);
     tft.fillScreen(TFT_BLACK);
-    Serial.print("Current values: ");
-    char tempBuf[PROJLEN];
-    for(int i=0 ; i < preferences.getInt("numProj"); i++){
-      // Serial.printf("%s",projBuffer[i]);
-      itoa(i,keyStr,10);
-      preferences.getString(keyStr,tempBuf,PROJLEN);
-      Serial.printf("%s",tempBuf);
-      Serial.print(" / ");
-    }
+    #ifdef DEBUG
+      Serial.print("Current values: ");
+      char tempBuf[PROJLEN];
+      for(int i=0 ; i < preferences.getInt("numProj"); i++){
+        itoa(i,keyStr,10);
+        preferences.getString(keyStr,tempBuf,PROJLEN);
+        Serial.printf("%s",tempBuf);
+        Serial.print(" / ");
+      }
+    #endif
   }
 
 
