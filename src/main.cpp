@@ -2,22 +2,37 @@
 #include <TFT_eSPI.h>
 #include <Adafruit_ADXL345_U.h>
 #include "Free_Fonts.h"
+#include "CACERT.h"
+#include <WiFi.h>
+#include <WiFiMulti.h>
+#include <HTTPClient.h>
+#include <Preferences.h>
 
 #define DEBUG 0
-
 #define DEF_BLUE 0x0027
+
+#define MAXPROJ 20
+#define PROJLEN 40
+#define WIFICONNECTTIMEOUT 15000
+
+void projectAnimation(char *projectName);
+void storeHTTPSdata();
 
 const long MINDELAY = 5000;
 const long HOLDFOR = 4000;
 const float SHAKETHRESHOLD = 22;
 float Ax,Ay,Az,mag;
 
+String targ = "<li><a href=";
+
 TFT_eSPI tft = TFT_eSPI();
+WiFiMulti WiFiMulti;
+Preferences preferences;
 
 int xpos, ypos;
 
-// add or edit entries
-char projects [250][70] = {"0008-Facemask Tutorial", "0017-Crescent flower earrings", "3D-Printers:Ender3", "3D-Printers:Kili", "3D-Printers:Thorin", "3D Modeling with Blender", "3D Scanner", "3D printed bobbin", "AM radio transmitter", "A Simple Wenner Array", "A Sound (Frequency) Detection Circuit", "A simple electrocardiogram circuit", "Acoustic to Electrical instrument converter", "Airbrush", "Amigurumi", "Analog Modular Synth", "Analog Modular Synthesizer", "Arbor Press", "Arm Warmers/Covers from Scrap Fabric", "Automatic Desk Lamp Concept", "Beginner Crochet", "Beginner knitting", "Belt Sander", "Bike Phone Mount", "Bike Repair Cart", "Bootleg Snowskate", "Bosch CM10GD", "Bosch CM10GD Miter Saw", "Box Cutter", "Building a Transistor Theremin", "Buildspot Machine Shop", "Buildspot Wood Shop", "Button Maker", "Button Maker Tutorial", "CNC Mill", "CNC Plasma Cutting", "Cal Poly SLO Mustang '60 Machine Shop", "Carl-o-gotchi", "Cassette Player Circuit", "Clamp lab", "Class D Operational Amplifier", "Class of 1969 Makerspace", "Cleaning The GlowForge", "Clothing Repair", "Clothing Repair Tools", "Color Lamp", "Concrete", "Crescent flower earrings", "Cricut Maker 3", "Crochet, Kit", "Crochet (Kit)", "Crochet Hyperbolic Pseudospheres", "Crocheted Flowers", "DCS312", "DCS334", "DCS380", "DIY Chipmunk", "DeWalt DCN660", "DeWalt DCN680", "DeWalt DCN681", "DeWalt DCS512", "DeWalt DCS520", "DeWalt DCS577", "DeWalt DCW210", "DeWalt DW735", "Delta 66-120", "Demo", "Drill", "Drill Press", "ESP32:Intro", "ESP32 WROOM", "Ender 3 Max Neo", "Engineering Product Innovation Center (EPIC)", "EpoxyResin", "Epoxy Resin", "Extech X503 Multimeter", "FM Oscillator and Radio Frequency Amplifier Circuit", "Facemask Tutorial", "Filament deposition modeling printer", "Flow Mach 2 Waterjet", "Ford Campus Wood Shop", "Formlabs Form 3 3D Printer", "Formlabs Fuse 1 3D Printer", "Frequency Modulator", "Friday Flowers Crochet", "Fusion360", "GALLERY", "Glowforge Pro", "Hardinge Toolroom Lathe", "Harrison Lathe", "Headphone Guitar Amp with Tremelo", "Herb Garden", "Home", "Home New", "Horizontal Bandsaw", "Impact Driver", "Intro Raspberry Pi", "JET JJB6", "Jet JJB6", "Kili (3D Printer)", "Kitchen Lithography", "LED Audio Visualizer", "LED Music Visualizer", "Laguna 14bx", "Laser Cut Catan Board", "Laser Engraver", "Leaderboard", "LulzBot 3D Printer", "MIG Welder", "Machine Shop Tools", "Macropad", "Main Page", "Make your own deodorant and toothpaste!", "Maker Tracking System", "Makerspace Instrument Shop", "Makerspace Machine Shop", "Makerspace Repair Lair", "Makerspace Tools", "Makerspace Woodshop", "Metal Detector", "Metalworking Lathes", "Mic stand", "Microcontrollers:ESP32", "Milwaukee 6480-20", "Mini Electric Generator", "Mini Soldering Hoods", "Module:ProjectGallery", "Mushroom Boi Earrings", "Nametag", "Nomai Mask - EVA foam", "Original Prusa XL 3D Printer", "Osaka Castle Model", "Over-Complicated Digital Thermometer", "Patch Making out of Scraps and Acrylic Paints", "Patches", "Photogrammetry", "Pi Basics", "Plasma Cutter (CNC)", "Pompoms!", "Powermatic PM2800B", "Project", "ProjectLabels", "Project Tutorials", "Project Tutorials test", "Projects:ccms-0013", "Projects:ccms-0014", "Projects:ccms-0015", "Projects:ccms-0016", "Projects:ccms-0017", "Punch Press", "Quest0004", "Rapid Prototyping Lab", "Raspberry Pi:Intro", "Reprovisioned Press", "Rigol Oscilloscope", "SBU CEAS Shops", "Sample Create", "Sample SSMC Space", "Sandbox", "SawStop ICS31230-36", "Screenprinting", "Sewing Arm Warmers", "Sewing Cart", "Sewing Leg Warmers", "Sewing Machine", "Shrek Bucket Hat", "Software:Fusion360", "Soldering Cart", "Spaces", "Spaces:StudentMachineShop", "Spaces New", "Spray Booth", "Stickers", "Student Machine Shop", "Stylophone", "TIG Welder", "TLC Plate Cutting Rig", "TOOLS", "TRAK DPM2 Mill", "Temperature & Relative Humidity & Light Sensor with an Alarm", "Test", "Test", "Test 2023", "Testamundo", "Testing", "The Coolest Project Possible", "The Electronics of a Stylophone", "Thorin", "Todd and Lemon", "Tools", "Tools:Laser Engraver", "Tools test", "Try", "Tube Sound Fuzz Guitar Effect Pedal", "Types of Stitches", "Univeral PLS6.75", "Universal PLS6.75", "UserStats", "VF4SS. VF2SS w/ Trunnion", "Vanilla Latte Socks", "VerticalBandsaw", "VerticalMill", "Vertical Bandsaw", "Vertical Mill", "Weller WES50", "Wood Shop Tools", "Zener Diode Noise Random Number Generator"};
+char projBuffer[MAXPROJ][PROJLEN];
+char keyStr[4];
 
 enum ScreenStates{
   IDLE,
@@ -41,6 +56,41 @@ void setup() {
   Serial.begin();
   tft.begin();
   tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE);
+  tft.setTextDatum(MC_DATUM);
+  preferences.begin("projStorage", false);
+
+  tft.drawString("Connecting...",xpos,ypos,GFXFF);
+  WiFi.mode(WIFI_STA);
+  WiFiMulti.addAP("SSID", "PASS");
+
+  // wait for WiFi connection
+  Serial.print("Waiting for WiFi to connect...");
+  
+  while ((WiFiMulti.run() != WL_CONNECTED)) {
+    Serial.print(".");
+    
+    if(millis() > WIFICONNECTTIMEOUT){
+      Serial.println("WIFI connection failed");
+      tft.fillScreen(TFT_BLACK);
+      tft.drawString("Connection Failed.",xpos,ypos,GFXFF);
+      delay(1000);
+      tft.fillScreen(TFT_BLACK);
+      break;
+    };
+  }
+  delay(500);
+
+  if(WiFiMulti.run() == WL_CONNECTED){
+    tft.fillScreen(TFT_BLACK);
+    tft.drawString("Connected! Fetching...",xpos,ypos,GFXFF);
+    storeHTTPSdata();
+    tft.fillScreen(TFT_BLACK);
+  }
+  
+
+
+  
 }
 
 void loop() {
@@ -52,29 +102,11 @@ void loop() {
   Az = event.acceleration.z;
   mag = sqrt(pow(Ax,2) + pow(Ay,2)+ pow(Az,2));
   if (millis()-last_fire > MINDELAY && mag > SHAKETHRESHOLD){
-    delay(1000);
-    tft.setFreeFont(FSB24);
-    tft.setTextDatum(MC_DATUM);
-    
-    int ind = random(0,200);
-    char *token = strtok(projects[ind]," ");
-    for(int i = 0; i < 256; i+=2){
-      tft.fillTriangle(120,16,30,172,210,172,tft.alphaBlend(i,DEF_BLUE,TFT_BLACK));
-      if (i > 120){
-        tft.setTextColor(tft.alphaBlend(i,TFT_WHITE,TFT_BLACK));
-        tft.drawString(projects[ind],xpos,ypos,GFXFF);
-        }
-      }
-        int offset = 0;
-        tft.setTextColor(TFT_WHITE);
-        while (token != NULL){
-          tft.drawString(token,xpos,ypos+offset,GFXFF); 
-          offset += 8;
-          token = strtok(NULL, " ");
-    }
-
-    curScreen = SHAKEN;
-    last_fire = millis();
+    int ind = random(0,preferences.getInt("numProj"));
+    char tempBuf[PROJLEN];
+    itoa(ind,keyStr,10);
+    preferences.getString(keyStr,tempBuf,PROJLEN);
+    projectAnimation(tempBuf);
   }
 
   if (DEBUG){
@@ -97,6 +129,115 @@ void loop() {
     tft.fillScreen(TFT_BLACK);
   }
 }
+
+void projectAnimation(char *projectName){
+  delay(1000);
+  tft.setFreeFont(FSB24);
+  
+  
+  
+  char *token = strtok(projectName,"_");
+  for(int i = 0; i < 256; i+=2){
+    tft.fillTriangle(120,16,30,172,210,172,tft.alphaBlend(i,DEF_BLUE,TFT_BLACK));
+    if (i > 120){
+      tft.setTextColor(tft.alphaBlend(i,TFT_WHITE,TFT_BLACK));
+      tft.drawString(projectName,xpos,ypos,GFXFF);
+      }
+    }
+      int offset = 0;
+      tft.setTextColor(TFT_WHITE);
+      while (token != NULL){
+        tft.drawString(token,xpos,ypos+offset,GFXFF); 
+        offset += 8;
+        token = strtok(NULL, "_");
+  }
+
+  curScreen = SHAKEN;
+  last_fire = millis();
+}
+
+void storeHTTPSdata() {
+  int projInd = 0;
+  
+  WiFiClientSecure* client = new WiFiClientSecure;
+  if (client) {
+    client->setCACert(rootCACertificate);
+    client->setTimeout(30000);
+    {
+      // Add a scoping block for HTTPClient https to make sure it is destroyed before NetworkClientSecure *client is
+      HTTPClient https;
+      Serial.print("[HTTPS] begin...\n");
+      if (https.begin(*client, "https://makerspace.cc/Category:SimpleProjects")) {  // HTTPS
+        Serial.print("[HTTPS] GET...\n");
+        // start connection and send HTTP header
+        int httpCode = https.GET();
+
+        // httpCode will be negative on error
+        if (httpCode > 0) {
+          // HTTP header has been send and Server response header has been handled
+          Serial.printf("[HTTPS] GET... code: %d\n", httpCode);
+
+          // file found at server
+          if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
+            String payload = https.getString();
+            int iter = 0;
+            while (1) {
+              iter = payload.indexOf(targ, iter);
+              if (iter == -1) break;
+              iter += targ.length()+2;
+              int i = 0;
+              while (payload[iter+i]!= '"') {
+                if (payload[iter+i] == '(') break;
+                projBuffer[projInd][i] = payload[iter+i];
+                // Serial.print(payload[iter+i]);
+                i++;
+              }
+              projBuffer[projInd][i+1] = '\0';
+              iter++;
+              projInd++;
+              Serial.println();
+            }
+              preferences.putInt("numProj",projInd);
+              for(int j = 0; j < projInd; j++){
+                itoa(j,keyStr,10);
+                // Serial.printf("Trying to store: %s. ", projBuffer[j]);
+                preferences.putString(keyStr,projBuffer[j]);
+              }
+              Serial.println("Stored");
+            }
+          } else {
+            Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
+          }
+
+          https.end();
+        } else {
+          tft.fillScreen(TFT_BLACK);
+          tft.drawString("Unable to make HTTPS req",xpos,ypos,GFXFF);
+          delay(1000);
+          tft.fillScreen(TFT_BLACK);
+          Serial.printf("[HTTPS] Unable to connect\n");
+        }
+
+      }
+      delete client;
+    }
+    else {
+      Serial.println("Unable to create client");
+    }
+    tft.fillScreen(TFT_BLACK);
+    tft.drawString("Successful req!",xpos,ypos,GFXFF);
+    delay(1000);
+    tft.fillScreen(TFT_BLACK);
+    Serial.print("Current values: ");
+    char tempBuf[PROJLEN];
+    for(int i=0 ; i < preferences.getInt("numProj"); i++){
+      // Serial.printf("%s",projBuffer[i]);
+      itoa(i,keyStr,10);
+      preferences.getString(keyStr,tempBuf,PROJLEN);
+      Serial.printf("%s",tempBuf);
+      Serial.print(" / ");
+    }
+  }
 
 
 
